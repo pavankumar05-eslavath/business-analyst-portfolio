@@ -1,0 +1,11 @@
+pandas==3.0.5
+PyYAML==6.0.5
+openpyxl==3.1.5
+
+# Test-only. `formulas` is an independent Excel formula engine; the test suite uses
+# it to evaluate the generated workbook and assert it agrees with the Python model.
+# Without it the tests would only prove that the code which wrote the spreadsheet is
+# self-consistent, which says nothing about what a reader opens.
+pytest==9.1.1
+formulas==1.3.4
+ruff==0.16.5
