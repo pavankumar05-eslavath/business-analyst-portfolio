@@ -1,0 +1,116 @@
+name: BA-2 Unit Economics
+
+on:
+  push:
+    branches: [main]
+    paths: ['ba2-unit-economics/**', '.github/workflows/ba2-ci.yml']
+  pull_request:
+    paths: ['ba2-unit-economics/**', '.github/workflows/ba2-ci.yml']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: ba2-unit-economics
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: ba2-unit-economics/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint
+        run: ruff check src tests
+
+      # The suite includes tests that load the generated .xlsx into an independent
+      # formula engine and assert it agrees with the Python model cell by named cell,
+      # with zero error cells. Verifying the code that wrote the spreadsheet proves
+      # nothing about what a reader opens, so the artefact is verified as an artefact.
+      - name: Tests
+        run: pytest tests -q
+
+      - name: Run the analysis and build the workbook
+        run: python -m src.run all
+
+      # The headline numbers are re-derived here independently of the test suite, so a
+      # driver change that quietly invalidates a claim in README.md or DECISION.md
+      # fails the build rather than leaving the prose wrong.
+      - name: Verify the documented findings
+        run: |
+          python - <<'PY'
+          from src import drivers as D
+          from src.model import build_unit_economics, build_channel_portfolio
+          from src.decisions import evaluate_all, evaluate_combined
+
+          d = D.load()
+          base = build_unit_economics(d)
+          decisions = {x.key: x for x in evaluate_all(d, base)}
+          portfolio = build_channel_portfolio(d, base.cm3, base.cm2)
+          problems = []
+
+          def check(label, actual, expected, tol):
+              if abs(actual - expected) > tol:
+                  problems.append(f"{label}: expected ~{expected}, got {actual}")
+
+          check("CM1 per order", base.cm1, 115.62, 0.01)
+          check("CM2 per order", base.cm2, 63.48, 0.01)
+          check("CM3 per order", base.cm3, 26.97, 0.01)
+          check("EBITDA per order", base.ebitda_per_order, -6.03, 0.01)
+          check("blended LTV:CAC", portfolio.blended_ratio, 2.20, 0.02)
+          check("paid LTV:CAC", portfolio.paid_ratio, 1.28, 0.02)
+          check("sub-1.0x spend share", portfolio.sub_unity_spend_share, 0.46, 0.01)
+
+          expansion = decisions["store_expansion"]
+          threshold = decisions["threshold_change"]
+          media = decisions["retail_media"]
+
+          # The finding: revenue and contribution point in opposite directions.
+          if not (expansion.revenue_growth > 0 > expansion.monthly_delta):
+              problems.append("expansion should grow revenue and shrink contribution")
+          if not (threshold.revenue_growth < 0 < threshold.monthly_delta):
+              problems.append("threshold change should shrink revenue and grow contribution")
+
+          if expansion.verdict != "REJECT":
+              problems.append("store expansion should be rejected")
+          for name, dec in (("threshold", threshold), ("retail media", media)):
+              if dec.verdict != "APPROVE":
+                  problems.append(f"{name} should be approved")
+
+          check("break-even incrementality", expansion.break_even_value, 0.637, 0.005)
+          check("break-even volume decline", threshold.break_even_value, 0.113, 0.005)
+
+          combined = evaluate_combined(d, base, [threshold, media])
+          if combined.interaction >= 0:
+              problems.append("the two approved proposals should interact negatively")
+          if not (base.ebitda_total < 0 < combined.combined.ebitda_total):
+              problems.append("both approved proposals together should turn EBITDA positive")
+
+          if problems:
+              raise SystemExit("DOCUMENTED FINDINGS FAILED\n" + "\n".join(problems))
+
+          print(f"CM1 {base.cm1:.2f} / CM2 {base.cm2:.2f} / CM3 {base.cm3:.2f} per order")
+          print(f"EBITDA {base.ebitda_total:,.0f} -> {combined.combined.ebitda_total:,.0f} per month")
+          print(f"expansion {expansion.monthly_delta:+,.0f} | threshold {threshold.monthly_delta:+,.0f} "
+                f"| retail media {media.monthly_delta:+,.0f}")
+          print("all documented findings reproduce")
+          PY
+
+      - name: Upload the model
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-economics-model
+          path: |
+            ba2-unit-economics/outputs/unit_economics.xlsx
+            ba2-unit-economics/outputs/analysis.txt
+          retention-days: 14

@@ -6,7 +6,7 @@ rather than the same one three times.
 | Project | Archetype | What it demonstrates |
 |---|---|---|
 | **[BA-1 — Loan Origination Requirements Package](./ba1-requirements-package)** ✅ | Product / SDLC BA | 12 documents: stakeholder analysis and RACI, AS-IS→TO-BE process models, BRD with business case, 47 functional requirements, 8 versioned decision tables, 19 Gherkin stories, 30 NFRs, data model, 53 UAT cases, release plan, and 3 worked change-request impact assessments. **The traceability matrix is executable — and it found 12 real defects in my own documents, including 4 Must requirements with no acceptance criteria.** |
-| **[BA-2 — Unit Economics & Pricing Decision](./ba2-unit-economics)** | Commercial / finance BA | Driver-based P&L model with live formulas, CM1–CM3 per order, channel LTV:CAC, cohort payback, break-even, two-way sensitivity, and a recommendation with second-order effects modelled. |
+| **[BA-2 — Quick-commerce Unit Economics](./ba2-unit-economics)** ✅ | Commercial / finance BA | 38-driver P&L model delivered as a **9-sheet Excel workbook where every calculated cell is a live formula**, verified by an independent formula engine. CM1–CM3 per order, channel LTV:CAC, 24-month cohort payback, break-even density, two-way sensitivity. Three proposals, three different verdicts. **Revenue and contribution point in opposite directions on two of them.** |
 | **[BA-3 — KPI Framework & Root-Cause Diagnosis](./ba3-kpi-root-cause)** | Operations / MI BA | KPI tree, governed metric dictionary, MECE hypothesis testing in SQL with an audit trail of eliminated branches, mix-vs-rate decomposition, and a business case with ROI. |
 
 ## Why documents, not code
