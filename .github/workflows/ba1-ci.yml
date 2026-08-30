@@ -1,0 +1,47 @@
+name: BA-1 Requirements Package
+
+on:
+  push:
+    branches: [main]
+    paths: ['ba1-requirements-package/**', '.github/workflows/ba1-ci.yml']
+  pull_request:
+    paths: ['ba1-requirements-package/**', '.github/workflows/ba1-ci.yml']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: ba1-requirements-package
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: ba1-requirements-package/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint
+        run: ruff check tools tests
+
+      # The point of this job. A requirements package is a set of documents that must
+      # agree with each other, and they stop agreeing the moment one is edited alone.
+      # Running the validator in CI means a pull request that adds a requirement without
+      # updating the matrix, the stories, the UAT cases and the release plan fails --
+      # rather than being merged and trusted.
+      - name: Validate traceability
+        run: python -m tools.validate_traceability
+
+      # The validator is only worth trusting if it demonstrably fails on broken input.
+      # 16 of these 25 tests mutate a document in memory and assert the corresponding
+      # rule fires, so a rule that silently stops working breaks the build.
+      - name: Tests
+        run: pytest tests -q

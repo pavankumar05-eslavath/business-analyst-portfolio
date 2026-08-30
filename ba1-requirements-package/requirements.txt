@@ -1,0 +1,5 @@
+# The validator itself uses only the standard library -- deliberately, so that
+# `make validate` works on a clean checkout with no install step.
+# These are for the test suite and linting only.
+pytest==9.1.1
+ruff==0.16.5
