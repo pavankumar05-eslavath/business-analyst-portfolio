@@ -1,0 +1,302 @@
+# Project QUICKCART -- driver set for the unit economics model
+#
+# Every number in the model comes from this file. Nothing is hard-coded in the
+# Python, and nothing is typed into the Excel workbook except these values --
+# the workbook's calculation sheets are formulas referencing named ranges that
+# point back here.
+#
+# The `basis` field on each driver is not documentation for its own sake. A
+# driver-based model is only as defensible as its weakest input, and the fastest
+# way to lose a finance review is to be unable to say where a number came from.
+# Drivers marked ASSUMPTION are the ones to attack first; they are the ones the
+# sensitivity analysis is built around.
+#
+# Company: fictional challenger quick-commerce operator, 3 Indian cities.
+# Deliberately sub-scale relative to the market leader, because the interesting
+# decisions only exist below scale.
+
+meta:
+  company: QuickCart
+  currency: INR
+  period: monthly
+  days_per_month: 30
+
+scale:
+  dark_stores:
+    value: 48
+    unit: stores
+    basis: Current estate across 3 cities.
+  orders_per_store_per_day:
+    value: 420
+    unit: orders
+    basis: >
+      ASSUMPTION anchored to public benchmarks. Sacra put a mature dark store at
+      roughly 500 orders/day at ~13% contribution margin (Dec 2024). Blinkit's
+      Q4 FY26 disclosure implies far higher density (274m quarterly orders across
+      2,243 stores). 420 places us below maturity, which is the honest position
+      for a challenger and is the single most important driver in the model.
+
+basket:
+  gross_order_value:
+    value: 465.0
+    unit: INR
+    basis: >
+      ASSUMPTION. Below Blinkit's reported net AOV of ~INR 525 (Q4 FY26),
+      reflecting a smaller-basket challenger mix.
+  basket_log_sigma:
+    value: 0.62
+    unit: dimensionless
+    basis: >
+      ASSUMPTION. Standard deviation of log basket value; sets the share of
+      orders falling below any free-delivery threshold. Implies a median basket
+      meaningfully below the mean, which is the observed shape for grocery.
+  platform_funded_discount:
+    value: 18.0
+    unit: INR per order
+    basis: Coupon and promo cost borne by the platform, not brand-funded.
+
+revenue:
+  product_gross_margin_pct:
+    value: 0.215
+    unit: fraction of net order value
+    basis: >
+      Blinkit reported a gross profit margin of 26.6% in Q3 FY26; industry
+      commentary puts the customer-paid take rate at 15-18% of order value. The
+      two are different definitions. 21.5% is a challenger sitting between them
+      with weaker supplier terms than the leader.
+  free_delivery_threshold:
+    value: 299.0
+    unit: INR
+    basis: Current policy. Orders below this pay the delivery fee.
+  delivery_fee:
+    value: 25.0
+    unit: INR
+    basis: Current fee charged on sub-threshold baskets.
+  handling_fee:
+    value: 9.0
+    unit: INR per order
+    basis: Charged on every order regardless of basket size.
+  retail_media_income:
+    value: 14.0
+    unit: INR per order
+    basis: >
+      Brand-funded placement, banner and search-listing income. The
+      highest-margin line in the model because it carries no fulfilment cost.
+
+cost_of_sales:
+  payment_gateway_pct:
+    value: 0.009
+    unit: fraction of collected revenue
+    basis: Blended card / UPI / wallet MDR.
+  packaging_material:
+    value: 7.0
+    unit: INR per order
+    basis: Bags, crates, ice packs for chilled lines.
+
+fulfilment:
+  rider_payout:
+    value: 36.0
+    unit: INR per order
+    basis: >
+      Per-order gig payout including incentives, at the current store density.
+  rider_payout_distance_share:
+    value: 0.45
+    unit: fraction of rider payout
+    basis: >
+      Portion of the payout that scales with delivery distance; the remainder is
+      base fee, pickup and handover, which do not shrink when the catchment does.
+      This driver exists to give the store-expansion proposal its genuine benefit:
+      more stores in the same city means smaller catchments and shorter rides.
+      Distance is modelled as proportional to the square root of area per store,
+      so payout scales with 1/sqrt(store count).
+  picking_labour:
+    value: 11.0
+    unit: INR per order
+    basis: Variable in-store pick and pack labour.
+  spoilage_pct:
+    value: 0.011
+    unit: fraction of gross order value
+    basis: Wastage and shrinkage, concentrated in fresh and dairy.
+
+store_fixed_monthly:
+  rent:
+    value: 205000.0
+    unit: INR per store per month
+    basis: 2,200-2,800 sq ft in high-density residential catchments.
+  utilities:
+    value: 62000.0
+    unit: INR per store per month
+    basis: Refrigeration is the bulk of this and does not scale down with volume.
+  store_staff:
+    value: 155000.0
+    unit: INR per store per month
+    basis: Store manager plus shift supervisors. Excludes variable pickers.
+  security_and_other:
+    value: 38000.0
+    unit: INR per store per month
+    basis: Security, housekeeping, local compliance, consumables.
+
+overhead:
+  central_overhead_per_order:
+    value: 19.0
+    unit: INR per order
+    basis: >
+      Technology, corporate, category and mother-hub supply chain, divided by
+      current order volume. Genuinely fixed in the short run -- shown per order
+      only for comparability, and re-divided whenever volume changes.
+  marketing_per_order:
+    value: 14.0
+    unit: INR per order
+    basis: Total acquisition and retention spend divided by current order volume.
+
+cohort:
+  orders_per_customer_per_month:
+    value: 3.6
+    unit: orders
+    basis: Monthly transacting-user order frequency.
+  month_1_retention:
+    value: 0.58
+    unit: fraction
+    basis: Share of an acquisition cohort still ordering in the following month.
+  asymptotic_retention:
+    value: 0.90
+    unit: fraction
+    basis: >
+      Month-on-month retention that survivors converge to. Quick commerce
+      retains heavily engaged users well; the loss is concentrated in month 1.
+  retention_decay:
+    value: 0.60
+    unit: dimensionless
+    basis: Rate at which monthly retention climbs from month 1 toward the asymptote.
+  tenure_frequency_uplift:
+    value: 0.25
+    unit: fraction
+    basis: >
+      Surviving customers order ~25% more per month by month 7 than in month 1.
+      Ignoring this understates LTV; assuming it continues past month 7 overstates it,
+      so it is capped.
+  horizon_months:
+    value: 24
+    unit: months
+    basis: >
+      LTV horizon. Chosen because it is the longest period the company has actual
+      cohort data for. Extending to 36 months would raise every LTV:CAC ratio and
+      is the most common way a marketing business case is made to clear its hurdle.
+
+# Acquisition channels. `retention_multiplier` scales the monthly retention
+# curve: coupon-acquired users churn materially faster, which is invisible in a
+# blended LTV and is the whole point of splitting them out.
+channels:
+  - name: organic
+    new_customers: 42000
+    spend: 0.0
+    retention_multiplier: 1.15
+    basis: App-store, word of mouth, brand search. Not bought.
+  - name: referral
+    new_customers: 11000
+    spend: 1320000.0
+    retention_multiplier: 1.10
+    basis: INR 120 two-sided referral credit.
+  - name: paid_social
+    new_customers: 19000
+    spend: 7790000.0
+    retention_multiplier: 0.95
+    basis: Meta and short-form video. Largest paid channel.
+  - name: paid_search
+    new_customers: 9500
+    spend: 3467500.0
+    retention_multiplier: 1.00
+    basis: High-intent keywords.
+  - name: affiliate_coupon
+    new_customers: 14000
+    spend: 7630000.0
+    retention_multiplier: 0.68
+    basis: >
+      Coupon and cashback aggregators. The retention multiplier is the finding:
+      users acquired by a discount behave like users who wanted the discount.
+  - name: offline_ooh
+    new_customers: 4500
+    spend: 3105000.0
+    retention_multiplier: 0.85
+    basis: Hoardings and society activations. Attribution is weakest here.
+
+# Scenario definitions. Multipliers and absolute deltas applied to the base case.
+# Kept here rather than in the Python so that the claim "every number in the model
+# comes from this file" stays true.
+scenarios:
+  bull:
+    basis: >
+      Store maturation lands ahead of plan and supplier terms improve on scale.
+      Not a fantasy case -- every driver moved is inside the range the business has
+      already seen in its best-performing city.
+    orders_per_store_per_day_pct: 0.12
+    product_gross_margin_pct_delta: 0.015
+    rider_payout_pct: -0.08
+    gross_order_value_pct: 0.05
+  bear:
+    basis: >
+      A competitor enters the two weaker cities, order density stalls and rider
+      payouts rise with supply pressure.
+    orders_per_store_per_day_pct: -0.12
+    product_gross_margin_pct_delta: -0.015
+    rider_payout_pct: 0.08
+    gross_order_value_pct: -0.05
+
+# The three proposals the model exists to evaluate.
+decisions:
+  store_expansion:
+    new_stores:
+      value: 12
+      unit: stores
+      basis: Growth team proposal -- deepen coverage in the existing 3 cities.
+    orders_per_new_store_per_day:
+      value: 300
+      unit: orders
+      basis: Expected steady-state volume of a new store, from the pilot.
+    incrementality:
+      value: 0.43
+      unit: fraction
+      basis: >
+        MEASURED. Share of a new store's orders that are genuinely new demand
+        rather than demand moved off a neighbouring store. Taken from the 2-store
+        pilot: neighbouring-store volume fell by 57% of the pilot stores' volume.
+    capex_per_store:
+      value: 3500000.0
+      unit: INR
+      basis: Fit-out, racking, refrigeration, initial inventory.
+  threshold_change:
+    proposed_threshold:
+      value: 499.0
+      unit: INR
+      basis: Pricing team proposal -- raise the free-delivery threshold.
+    upsize_propensity:
+      value: 0.35
+      unit: fraction
+      basis: >
+        ASSUMPTION. Share of customers inside the up-size band who add items to
+        cross the threshold rather than paying the fee or abandoning.
+    upsize_band_width:
+      value: 0.25
+      unit: fraction below threshold
+      basis: >
+        Only baskets within 25% below the threshold are treated as capable of
+        up-sizing. A customer with a INR 120 basket will not add INR 380 of
+        groceries to avoid a INR 25 fee, and modelling them as if they would is
+        the single easiest way to overstate this proposal.
+    observed_volume_response:
+      value: 0.031
+      unit: fraction
+      basis: >
+        MEASURED. Order-volume decline observed when the threshold last moved
+        (INR 249 -> INR 299). This is the number the recommendation turns on.
+  retail_media:
+    proposed_income:
+      value: 22.0
+      unit: INR per order
+      basis: >
+        Category team proposal -- raise brand-funded income through guaranteed
+        share-of-search slots and sponsored listings.
+    delivery_cost:
+      value: 900000.0
+      unit: INR per month
+      basis: Two category managers and ad-serving build. No customer-facing change.
