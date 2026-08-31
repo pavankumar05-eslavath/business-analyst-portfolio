@@ -1,0 +1,207 @@
+# Project ATLAS -- support SLA attainment root-cause analysis
+#
+# This file is the ground truth. Every effect the analysis claims to find is planted
+# here with a known size, which is the only way to prove a decomposition is correct
+# rather than merely plausible: if the four components do not sum back to the observed
+# gap, and if the planted sizes do not come out the other end, the method is wrong.
+#
+# The scenario is a B2B SaaS support organisation whose headline operational KPI --
+# SLA attainment -- has fallen sharply over six months. Four things are happening at
+# once, and only one of them is what the executive team thinks is happening.
+
+meta:
+  organisation: Northwind Software, Customer Support
+  seed: 20260830
+  start_month: 2025-03-01
+  months: 12
+  # Months 1-6 are the baseline half, months 7-12 the current half. The comparison
+  # everyone in the business is making is H2 against H1.
+  baseline_months: 6
+
+demand:
+  tickets_first_month: 3600
+  monthly_growth: 0.015
+  basis: >
+    Steady organic growth in line with account growth. Deliberately modest, so that
+    the volume hypothesis can be tested against capacity and eliminated on evidence
+    rather than dismissed.
+
+# Three service tiers with materially different SLA targets. The tier mix shifts hard
+# across the year because the company ran a deliberate up-market push.
+tiers:
+  standard:
+    sla_target_hours: 24
+    share_start: 0.70
+    share_end: 0.49
+    queue_priority: 3
+    handle_hours_median: 3.1
+    handle_hours_sigma: 0.78
+  business:
+    sla_target_hours: 8
+    share_start: 0.24
+    share_end: 0.20
+    queue_priority: 2
+    handle_hours_median: 2.6
+    handle_hours_sigma: 0.72
+  enterprise:
+    sla_target_hours: 4
+    share_start: 0.06
+    share_end: 0.31
+    queue_priority: 1
+    handle_hours_median: 2.2
+    handle_hours_sigma: 0.66
+
+tier_mix_note: >
+  share_start and share_end are the endpoints of a gradual ramp, NOT the realised
+  half-averages. The ramp straddles the H1/H2 boundary, so realised H1 enterprise share
+  comes out above 6% and realised H2 below 31%. The analysis reports the realised
+  shares it measures, because the ramp endpoints are a generator input and the mix
+  effect has to be computed from what actually happened.
+
+  Enterprise carries a 4-hour SLA target against 24 for standard -- six times tighter --
+  and the target was agreed by Sales during contract negotiation without a capacity
+  model. This is the structural component of the decline: identical operational
+  performance scores worse against a harder test.
+
+categories:
+  - name: how_to
+    weight: 0.31
+    handle_multiplier: 0.72
+  - name: data_sync
+    weight: 0.19
+    handle_multiplier: 1.34
+  - name: billing
+    weight: 0.17
+    handle_multiplier: 0.88
+  - name: integrations
+    weight: 0.15
+    handle_multiplier: 1.21
+  - name: access_and_permissions
+    weight: 0.12
+    handle_multiplier: 0.79
+  - name: performance
+    weight: 0.06
+    handle_multiplier: 1.48
+
+# A genuine improvement, planted so the analysis has something to find that runs
+# against the executive narrative.
+productivity:
+  handle_time_improvement_h2: 0.16
+  basis: >
+    A knowledge base and macro library shipped at the start of month 7 cut median
+    handle time by 16%. The support team got faster in the same period the metric got
+    worse, which is the finding the executive diagnosis cannot survive.
+
+    Partly offset in the data by a higher share of agents under 6 months' tenure, who
+    take 22% longer -- so the measured work-clock gain is smaller than 16%, which is
+    the honest number to report.
+
+# Time spent waiting on the customer. Genuinely outside the team's control, which is
+# why the SLA clock is supposed to pause for it.
+pending_customer:
+  probability: 0.16
+  hours_median: 2.2
+  hours_sigma: 0.70
+  basis: >
+    Awaiting customer logs, reproduction steps or access. Excluded from the SLA clock
+    by policy -- see METRIC_DICTIONARY.md.
+
+# The measurement artefact. A reporting migration silently dropped the clock-pause
+# rule, so the current half is measured on a stricter clock than the baseline half.
+definition_change:
+  effective_month: 7
+  description: >
+    The support platform was migrated at the start of month 7. The new reporting
+    pipeline computes resolution time as resolved_at minus created_at and no longer
+    subtracts approved pending-customer time. Nobody restated the prior period, so
+    every H2-vs-H1 comparison in the business compares two different metrics.
+  basis: MEASURED -- confirmed against the migration release notes and both pipelines.
+
+# A one-off event that creates a backlog. The backlog is what carries the damage
+# forward: tickets that arrive after the spike wait behind it.
+defect_spike:
+  month: 8
+  duration_days: 21
+  volume_multiplier: 2.0
+  category: data_sync
+  basis: >
+    Release 24.3 shipped a data-sync regression on day 4 of month 8. Volume in that
+    CATEGORY ran at 2.0x for three weeks until the fix, which is roughly +19% on total
+    daily volume given data_sync's 19% share. Modest by design: the peak backlog it
+    creates is about one day of throughput, which is enough to breach a 4-hour
+    enterprise target routinely and a 24-hour standard target only occasionally. The spike itself is over; the queue it
+    created is the part that persisted, because tickets arriving weeks later still
+    queued behind it.
+
+# Capacity deliberately keeps pace with the demand *trend* but not with the spike.
+# This is what lets the volume and headcount hypotheses be eliminated on evidence.
+capacity:
+  agents_first_month: 22
+  agents_final_month: 26
+  tickets_per_agent_per_day: 6.6
+  priority_ageing_days: 1.0
+  basis: >
+    Headcount grew from 22 to 26 across the year, calibrated so that utilisation
+    against TREND demand stays near 87% in both halves. No net attrition.
+
+    This calibration is what makes the analysis honest. If capacity had lagged demand,
+    the backlog would be chronic under-staffing and the executive proposal would be
+    right. Holding utilisation flat means the team was never short against the demand
+    TREND -- only against the spike -- so the volume and headcount hypotheses can be
+    eliminated on evidence rather than dismissed by assertion.
+
+# Signals used to test and eliminate hypotheses. None of these degrade; they exist so
+# that the elimination is evidence-based rather than assumed.
+quality:
+  reopen_rate: 0.061
+  reopen_rate_h2_delta: -0.004
+  escalation_rate: 0.088
+  escalation_rate_h2_delta: -0.003
+  misroute_rate: 0.047
+  misroute_rate_h2_delta: 0.002
+  basis: >
+    Reopens and escalations improved marginally; misrouting worsened marginally and is
+    far too small to explain the gap. Included so the issue tree can be closed rather
+    than left open.
+
+agents:
+  tenure_months_median: 19
+  new_hire_handle_penalty: 0.22
+  new_hire_tenure_threshold: 6
+  basis: >
+    Agents under 6 months take 22% longer. The hiring in H2 means a larger share of
+    new agents, so this is a real but partial effect and is reported as such.
+
+# The two competing remedies the business case has to choose between.
+remedies:
+  executive_proposal:
+    name: Add 8 permanent support engineers
+    headcount: 8
+    annual_cost_per_engineer: 1200000
+    basis: >
+      The VP Support's proposal, on the reading that the team is too slow. Costed at
+      fully loaded INR 12 lakh per engineer per year.
+  recommended:
+    restatement_cost: 0
+    restatement_weeks: 1
+    capacity_model_cost: 350000
+    contractor_count: 4
+    contractor_weeks: 8
+    contractor_weekly_cost: 55000
+    defect_prevention_cost: 900000
+    basis: >
+      Restate the metric on the governed definition, re-baseline the enterprise SLA
+      against a capacity model, clear the backlog with a time-boxed contractor burst,
+      and fix the release-testing gap that created the spike.
+
+# Commercial consequence, so the business case lands in money rather than percentage
+# points.
+commercial:
+  enterprise_accounts: 34
+  enterprise_arr_per_account: 4200000
+  service_credit_pct: 0.05
+  service_credit_threshold: 0.95
+  basis: >
+    Enterprise contracts carry a 5% monthly service credit if SLA attainment falls
+    below 95%. This is the real cost of the metric, and it applies to the enterprise
+    tier only.
