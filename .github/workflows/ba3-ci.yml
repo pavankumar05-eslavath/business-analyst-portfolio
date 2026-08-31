@@ -1,0 +1,141 @@
+name: BA-3 KPI Root Cause
+
+on:
+  push:
+    branches: [main]
+    paths: ['ba3-kpi-root-cause/**', '.github/workflows/ba3-ci.yml']
+  pull_request:
+    paths: ['ba3-kpi-root-cause/**', '.github/workflows/ba3-ci.yml']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: ba3-kpi-root-cause
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: ba3-kpi-root-cause/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint
+        run: ruff check data src tests
+
+      - name: Generate the dataset
+        run: python -m data.generate_tickets
+
+      # 36 tests. The critical one asserts the five decomposition components sum to the
+      # observed gap to within 1e-12 -- the property that makes the analysis falsifiable
+      # rather than merely plausible.
+      - name: Tests
+        run: pytest tests -q
+
+      - name: Run the analysis
+        run: python -m src.run
+
+      # Independent re-derivation of the headline claims, so a scenario change that
+      # quietly invalidates a number in FINDINGS.md or README.md fails the build rather
+      # than leaving the prose wrong.
+      - name: Verify the documented findings
+        run: |
+          python - <<'PY'
+          from src.business_case import build_exposure, build_remedies, minimum_viable_target
+          from src.decomposition import attainment, decompose, summarise_tiers
+          from src.run import load_config, tier_rows
+          from src.warehouse import build, query
+
+          config = load_config()
+          con = build(config)
+          result = decompose(
+              summarise_tiers(tier_rows(con, "H1")),
+              summarise_tiers(tier_rows(con, "H2")),
+          )
+          ceiling = query(con, "SELECT * FROM atlas.sla_ceiling")
+          threshold = float(config["commercial"]["service_credit_threshold"])
+          viable = minimum_viable_target(ceiling, "enterprise", threshold)
+          exposure = build_exposure(config, result.current_tiers["enterprise"].attainment_net)
+          remedies = {r.key: r for r in build_remedies(config, ceiling, exposure)}
+          problems = []
+
+          def check(label, actual, expected, tol):
+              if abs(actual - expected) > tol:
+                  problems.append(f"{label}: expected ~{expected}, got {actual}")
+
+          # The identity. Everything else is downstream of this holding.
+          if abs(result.residual) > 1e-12:
+              problems.append(f"decomposition residual is {result.residual}, must be 0")
+
+          check("reported gap", result.reported_gap, -0.0906, 0.0004)
+          check("definition", result.component("definition").value, -0.0271, 0.0005)
+          check("mix", result.component("mix").value, -0.0411, 0.0005)
+          check("backlog", result.component("backlog").value, -0.0536, 0.0005)
+          check("performance", result.component("performance").value, 0.0099, 0.0005)
+          check("not addressable by headcount", result.not_addressable_by_headcount,
+                -0.0682, 0.0008)
+
+          # The team got faster while the headline fell -- and the blended figure hides it.
+          if result.component("performance").value <= 0:
+              problems.append("within-tier performance should have improved")
+          if attainment(result.current_tiers, "work") >= attainment(result.baseline_tiers, "work"):
+              problems.append("the blended work clock should fall, or the trap has gone")
+          for tier, stats in result.baseline_tiers.items():
+              if result.current_tiers[tier].attainment_work <= stats.attainment_work:
+                  problems.append(f"{tier} should improve on the work clock")
+
+          # The ceiling finding.
+          check("enterprise ceiling at 4h", viable["current_ceiling"], 0.8560, 0.0015)
+          if viable["current_ceiling"] >= threshold:
+              problems.append("the ceiling must sit below the threshold or the memo is wrong")
+          if viable["min_target_achievable_today"] != 8.0:
+              problems.append(f"expected 8h to be the viable target, "
+                              f"got {viable['min_target_achievable_today']}")
+
+          # The business case.
+          check("annual service credits", exposure.annual_credit, 7_140_000, 1)
+          if remedies["executive"].clears_threshold:
+              problems.append("the executive proposal must not clear the threshold")
+          if not remedies["recommended"].clears_threshold:
+              problems.append("the recommendation must clear the threshold")
+
+          # Hypothesis verdicts.
+          verdicts = dict(query(con, "SELECT hypothesis_id, verdict FROM atlas.hypotheses").values)
+          expected_verdicts = {
+              "H01": "ELIMINATED", "H02": "ELIMINATED", "H03": "ELIMINATED",
+              "H04": "ELIMINATED", "H05": "ELIMINATED", "H06": "PARTIAL",
+              "H07": "PARTIAL", "H08": "RETAINED", "H09": "RETAINED",
+              "H10": "RETAINED", "H11": "REFRAMED", "H12": "RETAINED",
+          }
+          for key, expected in expected_verdicts.items():
+              if verdicts.get(key) != expected:
+                  problems.append(f"{key}: expected {expected}, got {verdicts.get(key)}")
+
+          con.close()
+          if problems:
+              raise SystemExit("DOCUMENTED FINDINGS FAILED\n" + "\n".join(problems))
+
+          print(f"reported gap {result.reported_gap*100:+.2f}pp, residual {result.residual:.2e}")
+          for c in result.components:
+              print(f"  {c.key:12} {c.pp:+7.2f}pp")
+          print(f"enterprise ceiling at 4h: {viable['current_ceiling']:.2%} "
+                f"vs {threshold:.0%} threshold")
+          print("all documented findings reproduce")
+          PY
+
+      - name: Upload the analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-analysis
+          path: ba3-kpi-root-cause/outputs/analysis.txt
+          retention-days: 14
