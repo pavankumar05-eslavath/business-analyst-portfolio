@@ -13,3 +13,7 @@ venv/
 
 .pytest_cache/
 .ruff_cache/
+
+# Generated datasets (rebuilt by `make data`)
+*.parquet
+*.duckdb
