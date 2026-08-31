@@ -7,7 +7,7 @@ rather than the same one three times.
 |---|---|---|
 | **[BA-1 — Loan Origination Requirements Package](./ba1-requirements-package)** ✅ | Product / SDLC BA | 12 documents: stakeholder analysis and RACI, AS-IS→TO-BE process models, BRD with business case, 47 functional requirements, 8 versioned decision tables, 19 Gherkin stories, 30 NFRs, data model, 53 UAT cases, release plan, and 3 worked change-request impact assessments. **The traceability matrix is executable — and it found 12 real defects in my own documents, including 4 Must requirements with no acceptance criteria.** |
 | **[BA-2 — Quick-commerce Unit Economics](./ba2-unit-economics)** ✅ | Commercial / finance BA | 38-driver P&L model delivered as a **9-sheet Excel workbook where every calculated cell is a live formula**, verified by an independent formula engine. CM1–CM3 per order, channel LTV:CAC, 24-month cohort payback, break-even density, two-way sensitivity. Three proposals, three different verdicts. **Revenue and contribution point in opposite directions on two of them.** |
-| **[BA-3 — KPI Framework & Root-Cause Diagnosis](./ba3-kpi-root-cause)** | Operations / MI BA | KPI tree, governed metric dictionary, MECE hypothesis testing in SQL with an audit trail of eliminated branches, mix-vs-rate decomposition, and a business case with ROI. |
+| **[BA-3 — KPI Framework & Root-Cause Diagnosis](./ba3-kpi-root-cause)** ✅ | Operations / MI BA | KPI tree vs MECE issue tree, governed metric dictionary, **12 hypotheses tested in SQL with the eliminated branches recorded**, and a four-way decomposition that **reconciles to the observed gap with a residual of 2.8e-17**. Rejects a ₹96 lakh/year headcount proposal by showing the SLA target has a hard ceiling below its own contractual threshold. |
 
 ## Why documents, not code
 
@@ -31,8 +31,14 @@ Anyone can download a BRD template and fill in headings. Three things here are n
    is the answer that loses BA interviews.
 4. **The defects found are documented, not hidden.** BA-1's validator caught 12 inconsistencies in
    documents I had already finished and reviewed — four of them Must-priority requirements that were
-   fully traced but had no acceptance criteria at all. Those findings are the most persuasive part of
-   the project, so they are written up rather than quietly fixed.
+   fully traced but had no acceptance criteria at all. BA-3's own hypothesis test initially returned
+   the wrong verdict, because it used a blended figure contaminated by the exact aggregation effect
+   the investigation exists to expose. These findings are the most persuasive part of the work, so
+   they are written up rather than quietly fixed.
+5. **Each project rejects something.** A model that approves every proposal demonstrates
+   arithmetic. BA-1 rejects a ₹4.2 crore scope addition, BA-2 rejects a store-expansion programme
+   that grows revenue while shrinking contribution, BA-3 rejects a ₹96 lakh/year headcount request.
+   Every rejection is quantified — not "this is misdirected" but "this closes 4.75pp of a 14.15pp gap".
 
 ## Reading order
 
